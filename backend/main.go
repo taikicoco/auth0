@@ -116,18 +116,11 @@ func setupServer(jwtValidator *validator.Validator) *echo.Echo {
 }
 
 func setupRoutes(e *echo.Echo, jwtValidator *validator.Validator) {
-	e.GET("/", handleRoot)
 	e.GET("/public", handlePublic)
 
 	protected := e.Group("/protected")
 	protected.Use(jwtMiddleware(jwtValidator))
 	protected.GET("/profile", handleProfile)
-}
-
-func handleRoot(c echo.Context) error {
-	return c.JSON(http.StatusOK, map[string]string{
-		"message": "Auth0 Backend API",
-	})
 }
 
 func handlePublic(c echo.Context) error {
