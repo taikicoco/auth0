@@ -46,7 +46,7 @@ func main() {
 		log.Fatalf("Failed to setup JWT validator: %v", err)
 	}
 
-	e := setupServer(config, jwtValidator)
+	e := setupServer(jwtValidator)
 
 	log.Printf("Server starting on %s", config.Port)
 	if err := e.Start(config.Port); err != nil {
@@ -103,7 +103,7 @@ func setupJWTValidator(config *Config) (*validator.Validator, error) {
 	return jwtValidator, nil
 }
 
-func setupServer(config *Config, jwtValidator *validator.Validator) *echo.Echo {
+func setupServer(jwtValidator *validator.Validator) *echo.Echo {
 	e := echo.New()
 
 	e.Use(middleware.Logger())
@@ -122,7 +122,6 @@ func setupRoutes(e *echo.Echo, jwtValidator *validator.Validator) {
 	protected := e.Group("/protected")
 	protected.Use(jwtMiddleware(jwtValidator))
 	protected.GET("/profile", handleProfile)
-	protected.GET("/admin", handleAdmin)
 }
 
 func handleRoot(c echo.Context) error {
@@ -147,24 +146,6 @@ func handleProfile(c echo.Context) error {
 		"message": "This is a protected endpoint",
 		"user_id": claims.RegisteredClaims.Subject,
 		"claims":  claims,
-	})
-}
-
-func handleAdmin(c echo.Context) error {
-	claims, ok := c.Get(userContextKey).(*validator.ValidatedClaims)
-	if !ok {
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get user claims")
-	}
-
-	customClaims, ok := claims.CustomClaims.(*CustomClaims)
-	if !ok {
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get custom claims")
-	}
-
-	return c.JSON(http.StatusOK, map[string]interface{}{
-		"message": "Admin endpoint accessed successfully",
-		"user_id": claims.RegisteredClaims.Subject,
-		"scope":   customClaims.Scope,
 	})
 }
 
