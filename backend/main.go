@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"net/url"
@@ -15,6 +16,14 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 )
 
+const (
+	defaultPort       = ":8080"
+	jwksCacheDuration = 5 * time.Minute
+	allowedClockSkew  = time.Minute
+	bearerScheme      = "Bearer "
+	userContextKey    = "user"
+)
+
 type CustomClaims struct {
 	Scope string `json:"scope"`
 }
@@ -23,78 +32,140 @@ func (c CustomClaims) Validate(ctx context.Context) error {
 	return nil
 }
 
+type Config struct {
+	Auth0Domain   string
+	Auth0Audience string
+	Port          string
+}
+
 func main() {
-	err := godotenv.Load()
+	config := loadConfig()
+
+	jwtValidator, err := setupJWTValidator(config)
 	if err != nil {
+		log.Fatalf("Failed to setup JWT validator: %v", err)
+	}
+
+	e := setupServer(config, jwtValidator)
+
+	log.Printf("Server starting on %s", config.Port)
+	if err := e.Start(config.Port); err != nil {
+		log.Fatalf("Failed to start server: %v", err)
+	}
+}
+
+func loadConfig() *Config {
+	if err := godotenv.Load(); err != nil {
 		log.Printf("Warning: Error loading .env file: %v", err)
 	}
 
-	issuerURL, err := url.Parse("https://" + os.Getenv("AUTH0_DOMAIN") + "/")
-	if err != nil {
-		log.Fatalf("Failed to parse the issuer url: %v", err)
+	config := &Config{
+		Auth0Domain:   os.Getenv("AUTH0_DOMAIN"),
+		Auth0Audience: os.Getenv("AUTH0_AUDIENCE"),
+		Port:          defaultPort,
 	}
 
-	provider := jwks.NewCachingProvider(issuerURL, 5*time.Minute)
+	if port := os.Getenv("PORT"); port != "" {
+		config.Port = ":" + port
+	}
+
+	if config.Auth0Domain == "" || config.Auth0Audience == "" {
+		log.Fatal("AUTH0_DOMAIN and AUTH0_AUDIENCE environment variables are required")
+	}
+
+	return config
+}
+
+func setupJWTValidator(config *Config) (*validator.Validator, error) {
+	issuerURL, err := url.Parse(fmt.Sprintf("https://%s/", config.Auth0Domain))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse issuer URL: %w", err)
+	}
+
+	provider := jwks.NewCachingProvider(issuerURL, jwksCacheDuration)
 
 	jwtValidator, err := validator.New(
 		provider.KeyFunc,
 		validator.RS256,
 		issuerURL.String(),
-		[]string{os.Getenv("AUTH0_AUDIENCE")},
+		[]string{config.Auth0Audience},
 		validator.WithCustomClaims(
 			func() validator.CustomClaims {
 				return &CustomClaims{}
 			},
 		),
-		validator.WithAllowedClockSkew(time.Minute),
+		validator.WithAllowedClockSkew(allowedClockSkew),
 	)
 	if err != nil {
-		log.Fatalf("Failed to set up the jwt validator")
+		return nil, fmt.Errorf("failed to create JWT validator: %w", err)
 	}
 
+	return jwtValidator, nil
+}
+
+func setupServer(config *Config, jwtValidator *validator.Validator) *echo.Echo {
 	e := echo.New()
 
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
 	e.Use(middleware.CORS())
 
-	e.GET("/", func(c echo.Context) error {
-		return c.JSON(http.StatusOK, map[string]string{
-			"message": "Auth0 Backend API",
-		})
-	})
+	setupRoutes(e, jwtValidator)
 
-	e.GET("/public", func(c echo.Context) error {
-		return c.JSON(http.StatusOK, map[string]string{
-			"message": "This is a public endpoint accessible without authentication",
-		})
-	})
+	return e
+}
+
+func setupRoutes(e *echo.Echo, jwtValidator *validator.Validator) {
+	e.GET("/", handleRoot)
+	e.GET("/public", handlePublic)
 
 	protected := e.Group("/protected")
 	protected.Use(jwtMiddleware(jwtValidator))
+	protected.GET("/profile", handleProfile)
+	protected.GET("/admin", handleAdmin)
+}
 
-	protected.GET("/profile", func(c echo.Context) error {
-		claims := c.Get("user").(*validator.ValidatedClaims)
-		return c.JSON(http.StatusOK, map[string]interface{}{
-			"message": "This is a protected endpoint",
-			"user_id": claims.RegisteredClaims.Subject,
-			"claims":  claims,
-		})
+func handleRoot(c echo.Context) error {
+	return c.JSON(http.StatusOK, map[string]string{
+		"message": "Auth0 Backend API",
 	})
+}
 
-	protected.GET("/admin", func(c echo.Context) error {
-		claims := c.Get("user").(*validator.ValidatedClaims)
-		customClaims := claims.CustomClaims.(*CustomClaims)
-		
-		return c.JSON(http.StatusOK, map[string]interface{}{
-			"message": "Admin endpoint accessed successfully",
-			"user_id": claims.RegisteredClaims.Subject,
-			"scope":   customClaims.Scope,
-		})
+func handlePublic(c echo.Context) error {
+	return c.JSON(http.StatusOK, map[string]string{
+		"message": "This is a public endpoint accessible without authentication",
 	})
+}
 
-	log.Println("Server starting on :8080")
-	e.Logger.Fatal(e.Start(":8080"))
+func handleProfile(c echo.Context) error {
+	claims, ok := c.Get(userContextKey).(*validator.ValidatedClaims)
+	if !ok {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get user claims")
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"message": "This is a protected endpoint",
+		"user_id": claims.RegisteredClaims.Subject,
+		"claims":  claims,
+	})
+}
+
+func handleAdmin(c echo.Context) error {
+	claims, ok := c.Get(userContextKey).(*validator.ValidatedClaims)
+	if !ok {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get user claims")
+	}
+
+	customClaims, ok := claims.CustomClaims.(*CustomClaims)
+	if !ok {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get custom claims")
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"message": "Admin endpoint accessed successfully",
+		"user_id": claims.RegisteredClaims.Subject,
+		"scope":   customClaims.Scope,
+	})
 }
 
 func jwtMiddleware(jwtValidator *validator.Validator) echo.MiddlewareFunc {
@@ -107,10 +178,10 @@ func jwtMiddleware(jwtValidator *validator.Validator) echo.MiddlewareFunc {
 
 			claims, err := jwtValidator.ValidateToken(context.Background(), token)
 			if err != nil {
-				return echo.NewHTTPError(http.StatusUnauthorized, "invalid token: "+err.Error())
+				return echo.NewHTTPError(http.StatusUnauthorized, fmt.Sprintf("invalid token: %v", err))
 			}
 
-			c.Set("user", claims)
+			c.Set(userContextKey, claims)
 			return next(c)
 		}
 	}
@@ -122,8 +193,8 @@ func extractToken(r *http.Request) string {
 		return ""
 	}
 
-	if len(authHeader) > 7 && authHeader[:7] == "Bearer " {
-		return authHeader[7:]
+	if len(authHeader) > len(bearerScheme) && authHeader[:len(bearerScheme)] == bearerScheme {
+		return authHeader[len(bearerScheme):]
 	}
 
 	return ""

@@ -21,7 +21,7 @@ export default function Home() {
               <h2 className="text-2xl font-semibold text-gray-800">Welcome!</h2>
               <div className="flex gap-4">
                 <a
-                  href="/api"
+                  href="/user"
                   className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-md transition-colors"
                 >
                   API Test
