@@ -1,0 +1,863 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JWT認証ガイド</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #F5F6FA;
+    --surface: #FFFFFF;
+    --surface-alt: #ECEEF6;
+    --border: #D7DBE7;
+    --text: #1A1F2C;
+    --text-muted: #5B6478;
+    --accent: #3B4FD9;
+    --accent-soft: #E3E7FD;
+    --success: #1F9D6B;
+    --success-soft: #DFF5EA;
+    --danger: #C7364C;
+    --danger-soft: #FBE4E8;
+    --code-bg: #12131C;
+    --code-text: #E7E9F5;
+    --code-muted: #8891AE;
+
+    --font-display: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "SF Mono", monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #12131A;
+      --surface: #181B25;
+      --surface-alt: #1E2230;
+      --border: #2C3142;
+      --text: #E5E8F2;
+      --text-muted: #939BB2;
+      --accent: #8B95FF;
+      --accent-soft: #262B4A;
+      --success: #4ADE94;
+      --success-soft: #163829;
+      --danger: #FF8B93;
+      --danger-soft: #3A1D22;
+      --code-bg: #0A0B11;
+      --code-text: #DEE1F0;
+      --code-muted: #767F9C;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #12131A;
+    --surface: #181B25;
+    --surface-alt: #1E2230;
+    --border: #2C3142;
+    --text: #E5E8F2;
+    --text-muted: #939BB2;
+    --accent: #8B95FF;
+    --accent-soft: #262B4A;
+    --success: #4ADE94;
+    --success-soft: #163829;
+    --danger: #FF8B93;
+    --danger-soft: #3A1D22;
+    --code-bg: #0A0B11;
+    --code-text: #DEE1F0;
+    --code-muted: #767F9C;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    line-height: 1.75;
+    font-size: 16px;
+  }
+
+  .page {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 56px 24px 96px;
+  }
+
+  header.hero {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding-bottom: 32px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 40px;
+  }
+
+  .kicker {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  h1 {
+    font-family: var(--font-display);
+    font-size: clamp(32px, 5vw, 44px);
+    font-weight: 600;
+    text-wrap: balance;
+  }
+
+  .lede {
+    max-width: 65ch;
+    color: var(--text-muted);
+    font-size: 17px;
+  }
+
+  .source-refs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+  }
+
+  .source-refs code {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    background: var(--surface-alt);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 3px 8px;
+    color: var(--text-muted);
+  }
+
+  nav.toc {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin-bottom: 48px;
+  }
+
+  nav.toc .toc-label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+    display: block;
+  }
+
+  nav.toc ol {
+    list-style: none;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px 24px;
+  }
+
+  nav.toc a {
+    color: var(--text);
+    text-decoration: none;
+    font-size: 14px;
+    border-bottom: 1px solid transparent;
+  }
+
+  nav.toc a:hover {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+  }
+
+  section {
+    margin-bottom: 64px;
+  }
+
+  section > .section-label {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--accent);
+    letter-spacing: 0.06em;
+    margin-bottom: 6px;
+  }
+
+  h2 {
+    font-family: var(--font-display);
+    font-size: 26px;
+    font-weight: 600;
+    margin-bottom: 16px;
+    text-wrap: balance;
+  }
+
+  h3 {
+    font-family: var(--font-body);
+    font-size: 16px;
+    font-weight: 700;
+    margin: 24px 0 10px;
+  }
+
+  p {
+    max-width: 68ch;
+    margin-bottom: 14px;
+  }
+
+  p.tight {
+    margin-bottom: 8px;
+  }
+
+  ul, ol.plain {
+    max-width: 68ch;
+    margin: 0 0 14px 22px;
+  }
+
+  li {
+    margin-bottom: 6px;
+  }
+
+  strong { font-weight: 700; }
+
+  code.inline {
+    font-family: var(--font-mono);
+    font-size: 0.88em;
+    background: var(--surface-alt);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 5px;
+  }
+
+  pre.code-block {
+    background: var(--code-bg);
+    color: var(--code-text);
+    border-radius: 10px;
+    padding: 18px 20px;
+    overflow-x: auto;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1.65;
+    margin: 12px 0 18px;
+    border: 1px solid var(--border);
+  }
+
+  pre.code-block .cm { color: var(--code-muted); }
+
+  figure {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+    margin: 20px 0 8px;
+    overflow-x: auto;
+  }
+
+  figure svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    min-width: 560px;
+  }
+
+  figcaption {
+    font-size: 13px;
+    color: var(--text-muted);
+    padding: 10px 4px 0;
+    max-width: 68ch;
+  }
+
+  figcaption .fig-num {
+    font-family: var(--font-mono);
+    color: var(--accent);
+    margin-right: 6px;
+  }
+
+  table {
+    width: 100%;
+    max-width: 68ch;
+    border-collapse: collapse;
+    margin: 8px 0 20px;
+    font-size: 14.5px;
+  }
+
+  th, td {
+    text-align: left;
+    padding: 9px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  th {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    font-weight: 600;
+  }
+
+  td code {
+    font-family: var(--font-mono);
+    font-size: 0.92em;
+  }
+
+  .table-wrap {
+    overflow-x: auto;
+  }
+
+  .check-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin: 20px 0 24px;
+  }
+
+  .check-chip {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 16px;
+    min-width: 130px;
+  }
+
+  .check-chip .chip-key {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--accent);
+  }
+
+  .check-chip .chip-desc {
+    font-size: 12.5px;
+    color: var(--text-muted);
+  }
+
+  .check-arrow {
+    color: var(--text-muted);
+    font-size: 18px;
+  }
+
+  .check-fail {
+    border-color: var(--danger);
+    background: var(--danger-soft);
+  }
+
+  .check-fail .chip-key { color: var(--danger); }
+
+  .callout {
+    background: var(--accent-soft);
+    border: 1px solid var(--accent);
+    border-radius: 10px;
+    padding: 14px 18px;
+    font-size: 14.5px;
+    max-width: 68ch;
+    margin: 4px 0 20px;
+  }
+
+  footer.page-footer {
+    border-top: 1px solid var(--border);
+    margin-top: 64px;
+    padding-top: 24px;
+    color: var(--text-muted);
+    font-size: 13.5px;
+  }
+
+  footer.page-footer a {
+    color: var(--accent);
+  }
+
+  /* --- SVG diagram styling --- */
+  .struct-box { fill: var(--surface); stroke: var(--border); stroke-width: 1.5; }
+  .payload-box { fill: var(--accent-soft); stroke: var(--accent); }
+  .struct-title { fill: var(--text); font-family: var(--font-mono); font-weight: 700; font-size: 15px; }
+  .mono-line { fill: var(--text); font-family: var(--font-mono); font-size: 12px; }
+  .mono-line-sm { fill: var(--text-muted); font-family: var(--font-mono); font-size: 10.5px; }
+  .struct-note { fill: var(--text-muted); font-family: var(--font-body); font-size: 11px; }
+  .dot-sep { fill: var(--text-muted); font-size: 30px; font-weight: 700; }
+
+  .node-box { fill: var(--surface); stroke: var(--border); stroke-width: 1.5; }
+  .key-box { fill: var(--surface-alt); }
+  .accent-box { fill: var(--accent-soft); stroke: var(--accent); }
+  .result-box { fill: var(--surface-alt); stroke: var(--success); }
+  .node-title { fill: var(--text); font-family: var(--font-body); font-weight: 700; font-size: 13.5px; }
+  .node-sub { fill: var(--text-muted); font-family: var(--font-mono); font-size: 10.5px; }
+  .flow-line { stroke: var(--text-muted); stroke-width: 1.6; fill: none; }
+  .rel-line { stroke: var(--text-muted); stroke-width: 1.3; stroke-dasharray: 3 4; }
+  .edge-label { fill: var(--text-muted); font-family: var(--font-body); font-size: 11px; }
+  .edge-label-sm { fill: var(--text-muted); font-family: var(--font-body); font-size: 10px; }
+  .arrow-head { fill: var(--text-muted); }
+
+  .lane-box { fill: var(--surface-alt); stroke: var(--border); stroke-width: 1.5; }
+  .lane-title { fill: var(--text); font-family: var(--font-body); font-weight: 700; font-size: 13px; }
+  .lifeline { stroke: var(--border); stroke-width: 1.4; stroke-dasharray: 2 4; }
+  .seq-line { stroke: var(--text-muted); stroke-width: 1.5; fill: none; }
+  .seq-line-dashed { stroke: var(--text-muted); stroke-width: 1.5; fill: none; stroke-dasharray: 5 4; }
+  .seq-label { fill: var(--text-muted); font-family: var(--font-body); font-size: 10.5px; }
+  .seq-num { fill: var(--accent); font-family: var(--font-mono); font-weight: 700; font-size: 10.5px; }
+
+  .flowchart-box { fill: var(--surface); stroke: var(--border); stroke-width: 1.5; }
+  .decision { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.5; }
+  .danger-node { fill: var(--danger-soft); stroke: var(--danger); stroke-width: 1.5; }
+  .success-node { fill: var(--success-soft); stroke: var(--success); stroke-width: 1.5; }
+  .flow-text { fill: var(--text); font-family: var(--font-body); font-size: 12.5px; font-weight: 700; }
+  .flow-text-sm { fill: var(--text-muted); font-family: var(--font-mono); font-size: 10px; }
+  .flow-edge-label { fill: var(--text-muted); font-family: var(--font-body); font-size: 10.5px; }
+
+  @media (max-width: 640px) {
+    nav.toc ol { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header class="hero">
+    <span class="kicker">auth0 リポジトリ &middot; JWT解説</span>
+    <h1>JWT認証ガイド</h1>
+    <p class="lede">
+      このリポジトリ（Next.js + Go + Auth0）でAPIを保護するために使われている
+      <strong>JWT（JSON Web Token）</strong>の仕組みを、構造・署名・データフローの3つの角度から図解します。
+    </p>
+    <div class="source-refs">
+      <code>frontend/src/app/api/auth/[...auth0]/route.ts</code>
+      <code>frontend/src/app/api/auth/token/route.ts</code>
+      <code>backend/main.go</code>
+    </div>
+  </header>
+
+  <nav class="toc">
+    <span class="toc-label">目次</span>
+    <ol>
+      <li><a href="#what-is-jwt">1. JWTとは何か</a></li>
+      <li><a href="#structure">2. JWTの構造</a></li>
+      <li><a href="#signing">3. 署名の仕組み（非対称暗号）</a></li>
+      <li><a href="#data-flow">4. このリポジトリでのデータフロー</a></li>
+      <li><a href="#verification">5. Go APIでの検証処理</a></li>
+      <li><a href="#claims">6. クレームの読み方</a></li>
+      <li><a href="#security">7. セキュリティ上のチェックポイント</a></li>
+      <li><a href="#glossary">8. 用語まとめ</a></li>
+    </ol>
+  </nav>
+
+  <!-- ============ 1. JWTとは何か ============ -->
+  <section id="what-is-jwt">
+    <div class="section-label">01</div>
+    <h2>JWTとは何か</h2>
+    <p>
+      JWT（JSON Web Token, RFC 7519）は<strong>署名付きでデータをやり取りするためのトークンのフォーマット</strong>です。
+      OAuth/OIDCの認可コードフローの「手続き」を経て、最終的に手に入る「モノ」がJWTだと考えると位置付けが分かりやすくなります。
+    </p>
+    <ul>
+      <li>中身（誰が発行したか、いつまで有効か等）が<strong>改ざんされていないと検証できる</strong></li>
+      <li>署名を検証できれば、発行元（Auth0）に<strong>毎回問い合わせなくても正当性を確認できる</strong>（自己完結型）</li>
+      <li>Base64URLエンコードされているだけなので、<strong>中身は暗号化されておらず誰でも読める</strong>（秘密情報を入れてはいけない）</li>
+    </ul>
+  </section>
+
+  <!-- ============ 2. JWTの構造 ============ -->
+  <section id="structure">
+    <div class="section-label">02</div>
+    <h2>JWTの構造</h2>
+    <p>JWTは <code class="inline">.</code>（ドット）区切りの3つの部分から成ります。</p>
+    <pre class="code-block">Header.Payload.Signature</pre>
+
+    <figure>
+      <svg viewBox="0 0 900 230" role="img" aria-label="JWTはHeader、Payload、Signatureの3部構成で、ドット区切りで連結される">
+        <rect x="10" y="20" width="260" height="190" rx="10" class="struct-box"/>
+        <text x="140" y="48" text-anchor="middle" class="struct-title">Header</text>
+        <text x="30" y="80" class="mono-line">alg: RS256</text>
+        <text x="30" y="104" class="mono-line">typ: JWT</text>
+        <text x="30" y="128" class="mono-line">kid: key-id</text>
+        <text x="30" y="168" class="struct-note">署名アルゴリズムと</text>
+        <text x="30" y="186" class="struct-note">鍵の識別子を示す</text>
+
+        <text x="286" y="122" text-anchor="middle" class="dot-sep">.</text>
+
+        <rect x="310" y="20" width="290" height="190" rx="10" class="struct-box payload-box"/>
+        <text x="455" y="48" text-anchor="middle" class="struct-title">Payload</text>
+        <text x="330" y="78" class="mono-line">iss: https://domain/</text>
+        <text x="330" y="100" class="mono-line">aud: api-identifier</text>
+        <text x="330" y="122" class="mono-line">sub: auth0|user-id</text>
+        <text x="330" y="144" class="mono-line">scope: read:profile</text>
+        <text x="330" y="166" class="mono-line">exp: 1700000000</text>
+        <text x="330" y="192" class="struct-note">実際のデータ本体（平文）</text>
+
+        <text x="613" y="122" text-anchor="middle" class="dot-sep">.</text>
+
+        <rect x="635" y="20" width="255" height="190" rx="10" class="struct-box"/>
+        <text x="762" y="48" text-anchor="middle" class="struct-title">Signature</text>
+        <text x="655" y="80" class="mono-line-sm">RSASHA256(</text>
+        <text x="655" y="98" class="mono-line-sm">  base64url(Header) + "." +</text>
+        <text x="655" y="116" class="mono-line-sm">  base64url(Payload),</text>
+        <text x="655" y="134" class="mono-line-sm">  秘密鍵</text>
+        <text x="655" y="152" class="mono-line-sm">)</text>
+        <text x="655" y="188" class="struct-note">改ざん検知のための署名</text>
+      </svg>
+      <figcaption><span class="fig-num">図1</span>Header・PayloadはBase64URLエンコードされているだけの平文。改ざん検知を担うのはSignatureのみ。</figcaption>
+    </figure>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>パート</th><th>中身</th><th>役割</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Header</strong></td><td>アルゴリズム(<code>alg</code>)、鍵ID(<code>kid</code>)</td><td>どの鍵・アルゴリズムで検証すればよいかを伝える</td></tr>
+          <tr><td><strong>Payload</strong></td><td>クレーム（<code>iss</code>, <code>aud</code>, <code>sub</code>, <code>exp</code> など）</td><td>実際のデータ本体</td></tr>
+          <tr><td><strong>Signature</strong></td><td>Header+Payloadを秘密鍵で署名したバイト列</td><td>改ざん検知のための署名</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============ 3. 署名の仕組み ============ -->
+  <section id="signing">
+    <div class="section-label">03</div>
+    <h2>署名の仕組み（非対称暗号）</h2>
+    <p>
+      このプロジェクトはHeaderの <code class="inline">alg</code> が <code class="inline">RS256</code>、つまり<strong>RSA非対称鍵ペア</strong>で署名しています。
+      「発行する側（Auth0）」と「検証する側（Go API）」で使う鍵が違うのがポイントです。
+    </p>
+
+    <figure>
+      <svg viewBox="0 0 870 220" role="img" aria-label="Auth0が秘密鍵でJWTに署名し、Go APIがJWKS経由の公開鍵で署名を検証する">
+        <defs>
+          <marker id="arrow2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+            <polygon points="0,0 10,5 0,10" class="arrow-head"/>
+          </marker>
+        </defs>
+
+        <line x1="230" y1="52" x2="330" y2="52" class="rel-line"/>
+        <text x="280" y="42" text-anchor="middle" class="edge-label-sm">同じ鍵ペア</text>
+
+        <rect x="30" y="20" width="200" height="64" rx="10" class="node-box key-box"/>
+        <text x="130" y="46" text-anchor="middle" class="node-title">🔒 秘密鍵</text>
+        <text x="130" y="66" text-anchor="middle" class="node-sub">(Auth0が保持)</text>
+
+        <rect x="330" y="20" width="220" height="64" rx="10" class="node-box key-box"/>
+        <text x="440" y="46" text-anchor="middle" class="node-title">🔑 公開鍵</text>
+        <text x="440" y="66" text-anchor="middle" class="node-sub">(JWKSから取得)</text>
+
+        <rect x="30" y="136" width="200" height="64" rx="10" class="node-box accent-box"/>
+        <text x="130" y="162" text-anchor="middle" class="node-title">JWTトークン</text>
+        <text x="130" y="182" text-anchor="middle" class="node-sub">(署名付き)</text>
+
+        <rect x="330" y="136" width="220" height="64" rx="10" class="node-box"/>
+        <text x="440" y="162" text-anchor="middle" class="node-title">Go API</text>
+        <text x="440" y="182" text-anchor="middle" class="node-sub">Bearerヘッダーで受信</text>
+
+        <rect x="630" y="136" width="220" height="64" rx="10" class="node-box result-box"/>
+        <text x="740" y="162" text-anchor="middle" class="node-title">✓ 正当 / ✗ 改ざん</text>
+        <text x="740" y="182" text-anchor="middle" class="node-sub">署名の照合結果</text>
+
+        <line x1="130" y1="84" x2="130" y2="132" class="flow-line" marker-end="url(#arrow2)"/>
+        <text x="140" y="112" class="edge-label">署名(sign)</text>
+
+        <line x1="440" y1="84" x2="440" y2="132" class="flow-line" marker-end="url(#arrow2)"/>
+        <text x="450" y="112" class="edge-label">検証に使用</text>
+
+        <line x1="230" y1="168" x2="326" y2="168" class="flow-line" marker-end="url(#arrow2)"/>
+        <text x="235" y="158" class="edge-label">Bearer送信</text>
+
+        <line x1="550" y1="168" x2="626" y2="168" class="flow-line" marker-end="url(#arrow2)"/>
+        <text x="558" y="158" class="edge-label">署名を照合</text>
+      </svg>
+      <figcaption><span class="fig-num">図2</span>秘密鍵はAuth0だけが保持する。Go APIは公開鍵（JWKS経由）で署名の正当性だけを検証でき、新しいトークンを偽造することはできない。</figcaption>
+    </figure>
+
+    <p class="tight"><code class="inline">backend/main.go</code> では <code class="inline">jwks.NewCachingProvider</code> がこのJWKS取得とキャッシュ（5分間）を担当しています。</p>
+  </section>
+
+  <!-- ============ 4. データフロー全体 ============ -->
+  <section id="data-flow">
+    <div class="section-label">04</div>
+    <h2>このリポジトリでのデータフロー全体</h2>
+    <p>ログインからAPI呼び出しまで、JWTがどう受け渡しされるかを追った全体図です。</p>
+
+    <figure>
+      <svg viewBox="0 0 1000 590" role="img" aria-label="ブラウザ、Next.js、Auth0、Go APIの間をJWTが受け渡しされる一連の流れ">
+        <defs>
+          <marker id="arrow3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+            <polygon points="0,0 10,5 0,10" class="arrow-head"/>
+          </marker>
+        </defs>
+
+        <rect x="35" y="14" width="150" height="40" rx="8" class="lane-box"/>
+        <text x="110" y="39" text-anchor="middle" class="lane-title">ブラウザ</text>
+        <rect x="305" y="14" width="150" height="40" rx="8" class="lane-box"/>
+        <text x="380" y="39" text-anchor="middle" class="lane-title">Next.js</text>
+        <rect x="575" y="14" width="150" height="40" rx="8" class="lane-box"/>
+        <text x="650" y="39" text-anchor="middle" class="lane-title">Auth0</text>
+        <rect x="845" y="14" width="150" height="40" rx="8" class="lane-box"/>
+        <text x="920" y="39" text-anchor="middle" class="lane-title">Go API</text>
+
+        <line x1="110" y1="54" x2="110" y2="560" class="lifeline"/>
+        <line x1="380" y1="54" x2="380" y2="560" class="lifeline"/>
+        <line x1="650" y1="54" x2="650" y2="560" class="lifeline"/>
+        <line x1="920" y1="54" x2="920" y2="560" class="lifeline"/>
+
+        <!-- 1 -->
+        <line x1="112" y1="90" x2="376" y2="90" class="seq-line" marker-end="url(#arrow3)"/>
+        <text x="245" y="82" text-anchor="middle" class="seq-label"><tspan class="seq-num">①</tspan> ログイン要求</text>
+
+        <!-- 2 -->
+        <line x1="382" y1="134" x2="646" y2="134" class="seq-line" marker-end="url(#arrow3)"/>
+        <text x="515" y="126" text-anchor="middle" class="seq-label"><tspan class="seq-num">②</tspan> 認可コード要求 (PKCE)</text>
+
+        <!-- 3 return -->
+        <line x1="648" y1="178" x2="384" y2="178" class="seq-line-dashed" marker-end="url(#arrow3)"/>
+        <text x="515" y="170" text-anchor="middle" class="seq-label"><tspan class="seq-num">③</tspan> IDトークン+アクセストークン発行</text>
+
+        <!-- 4 self loop -->
+        <polyline points="380,222 440,222 440,238 384,238" class="seq-line" marker-end="url(#arrow3)"/>
+        <text x="448" y="218" class="seq-label"><tspan class="seq-num">④</tspan> セッションCookieに</text>
+        <text x="448" y="232" class="seq-label">　暗号化して保存</text>
+
+        <!-- 5 -->
+        <line x1="112" y1="266" x2="376" y2="266" class="seq-line" marker-end="url(#arrow3)"/>
+        <text x="245" y="258" text-anchor="middle" class="seq-label"><tspan class="seq-num">⑤</tspan> /api/auth/token 呼び出し</text>
+
+        <!-- 6 return -->
+        <line x1="378" y1="310" x2="114" y2="310" class="seq-line-dashed" marker-end="url(#arrow3)"/>
+        <text x="245" y="302" text-anchor="middle" class="seq-label"><tspan class="seq-num">⑥</tspan> アクセストークンを返却</text>
+
+        <!-- 7 long -->
+        <line x1="112" y1="354" x2="916" y2="354" class="seq-line" marker-end="url(#arrow3)"/>
+        <text x="515" y="346" text-anchor="middle" class="seq-label"><tspan class="seq-num">⑦</tspan> Authorization: Bearer &lt;JWT&gt;</text>
+
+        <!-- 8 -->
+        <line x1="918" y1="398" x2="654" y2="398" class="seq-line" marker-end="url(#arrow3)"/>
+        <text x="785" y="390" text-anchor="middle" class="seq-label"><tspan class="seq-num">⑧</tspan> JWKS取得 (キャッシュ切れ時)</text>
+
+        <!-- 9 return -->
+        <line x1="652" y1="442" x2="916" y2="442" class="seq-line-dashed" marker-end="url(#arrow3)"/>
+        <text x="785" y="434" text-anchor="middle" class="seq-label"><tspan class="seq-num">⑨</tspan> 公開鍵セットを返却</text>
+
+        <!-- 10 self loop -->
+        <polyline points="920,486 860,486 860,502 916,502" class="seq-line" marker-end="url(#arrow3)"/>
+        <text x="852" y="482" text-anchor="end" class="seq-label"><tspan class="seq-num">⑩</tspan> 署名/exp/iss/aud</text>
+        <text x="852" y="496" text-anchor="end" class="seq-label">を検証</text>
+
+        <!-- 11 long return -->
+        <line x1="918" y1="530" x2="114" y2="530" class="seq-line-dashed" marker-end="url(#arrow3)"/>
+        <text x="515" y="522" text-anchor="middle" class="seq-label"><tspan class="seq-num">⑪</tspan> 200 OK + 保護されたリソース</text>
+      </svg>
+      <figcaption><span class="fig-num">図3</span>JWT自体はNext.jsの暗号化セッションCookieの中に保管され、ブラウザは<code class="inline">/api/auth/token</code>経由で初めて生の値を取得する。Go APIはトークンを保存せず、リクエストごとに検証するだけのステートレスな仕組み。</figcaption>
+    </figure>
+  </section>
+
+  <!-- ============ 5. Go APIでの検証処理 ============ -->
+  <section id="verification">
+    <div class="section-label">05</div>
+    <h2>Go APIでの検証処理（詳細）</h2>
+    <p><code class="inline">backend/main.go</code> の <code class="inline">jwtMiddleware</code> が実際にやっている処理をフローチャートにしたものです。</p>
+
+    <figure>
+      <svg viewBox="0 0 760 920" role="img" aria-label="Go APIのJWT検証ミドルウェアの内部処理フロー。トークン抽出からJWKSキャッシュ、署名検証、クレーム検証までを追う">
+        <defs>
+          <marker id="arrow4" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+            <polygon points="0,0 10,5 0,10" class="arrow-head"/>
+          </marker>
+        </defs>
+
+        <!-- A -->
+        <rect x="280" y="20" width="200" height="54" rx="8" class="flowchart-box"/>
+        <text x="380" y="52" text-anchor="middle" class="flow-text">リクエスト受信</text>
+        <line x1="380" y1="74" x2="380" y2="88" class="flow-line" marker-end="url(#arrow4)"/>
+
+        <!-- B decision -->
+        <polygon points="380,90 510,140 380,190 250,140" class="decision"/>
+        <text x="380" y="134" text-anchor="middle" class="flow-text">Bearerトークン</text>
+        <text x="380" y="150" text-anchor="middle" class="flow-text">あり?</text>
+
+        <!-- B -> Z1 -->
+        <line x1="510" y1="140" x2="558" y2="140" class="flow-line" marker-end="url(#arrow4)"/>
+        <text x="522" y="132" class="flow-edge-label">なし</text>
+        <rect x="560" y="115" width="170" height="50" rx="8" class="danger-node"/>
+        <text x="645" y="137" text-anchor="middle" class="flow-text">401 Unauthorized</text>
+        <text x="645" y="153" text-anchor="middle" class="flow-text-sm">(トークンなし)</text>
+
+        <!-- B -> C -->
+        <line x1="380" y1="190" x2="380" y2="238" class="flow-line" marker-end="url(#arrow4)"/>
+        <text x="390" y="218" class="flow-edge-label">あり</text>
+
+        <!-- C decision -->
+        <polygon points="380,240 510,290 380,340 250,290" class="decision"/>
+        <text x="380" y="284" text-anchor="middle" class="flow-text">JWKSキャッシュ</text>
+        <text x="380" y="300" text-anchor="middle" class="flow-text">有効?</text>
+
+        <!-- C -> D -->
+        <polyline points="250,290 195,290 195,380" class="flow-line" marker-end="url(#arrow4)"/>
+        <text x="160" y="330" text-anchor="middle" class="flow-edge-label">有効</text>
+
+        <!-- C -> E -->
+        <polyline points="510,290 565,290 565,380" class="flow-line" marker-end="url(#arrow4)"/>
+        <text x="605" y="330" text-anchor="middle" class="flow-edge-label">無効/未取得</text>
+
+        <!-- D -->
+        <rect x="100" y="380" width="190" height="54" rx="8" class="flowchart-box"/>
+        <text x="195" y="404" text-anchor="middle" class="flow-text">キャッシュから</text>
+        <text x="195" y="420" text-anchor="middle" class="flow-text">公開鍵取得</text>
+
+        <!-- E -->
+        <rect x="460" y="380" width="210" height="54" rx="8" class="flowchart-box"/>
+        <text x="565" y="404" text-anchor="middle" class="flow-text">Auth0のJWKSへ</text>
+        <text x="565" y="420" text-anchor="middle" class="flow-text">公開鍵をリクエスト</text>
+
+        <!-- E -> F -->
+        <line x1="565" y1="434" x2="565" y2="458" class="flow-line" marker-end="url(#arrow4)"/>
+
+        <!-- F -->
+        <rect x="460" y="460" width="210" height="54" rx="8" class="flowchart-box"/>
+        <text x="565" y="492" text-anchor="middle" class="flow-text">5分間キャッシュ</text>
+
+        <!-- D -> G -->
+        <polyline points="195,434 195,577 278,577" class="flow-line" marker-end="url(#arrow4)"/>
+        <!-- F -> G -->
+        <polyline points="565,514 565,577 492,577" class="flow-line" marker-end="url(#arrow4)"/>
+
+        <!-- G -->
+        <rect x="280" y="550" width="210" height="54" rx="8" class="flowchart-box"/>
+        <text x="385" y="574" text-anchor="middle" class="flow-text">RS256で</text>
+        <text x="385" y="590" text-anchor="middle" class="flow-text">署名検証</text>
+
+        <line x1="385" y1="604" x2="385" y2="628" class="flow-line" marker-end="url(#arrow4)"/>
+
+        <!-- H decision -->
+        <polygon points="385,630 515,680 385,730 255,680" class="decision"/>
+        <text x="385" y="674" text-anchor="middle" class="flow-text">exp / iss / aud</text>
+        <text x="385" y="690" text-anchor="middle" class="flow-text">を検証</text>
+
+        <!-- H -> Z2 -->
+        <line x1="515" y1="680" x2="558" y2="680" class="flow-line" marker-end="url(#arrow4)"/>
+        <text x="522" y="672" class="flow-edge-label">失敗</text>
+        <rect x="560" y="655" width="170" height="50" rx="8" class="danger-node"/>
+        <text x="645" y="677" text-anchor="middle" class="flow-text">401 Unauthorized</text>
+        <text x="645" y="693" text-anchor="middle" class="flow-text-sm">(検証失敗)</text>
+
+        <!-- H -> I -->
+        <line x1="385" y1="730" x2="385" y2="758" class="flow-line" marker-end="url(#arrow4)"/>
+        <text x="395" y="748" class="flow-edge-label">成功</text>
+
+        <!-- I -->
+        <rect x="275" y="760" width="220" height="54" rx="8" class="flowchart-box"/>
+        <text x="385" y="784" text-anchor="middle" class="flow-text">claimsをコンテキストに</text>
+        <text x="385" y="800" text-anchor="middle" class="flow-text">保存</text>
+
+        <line x1="385" y1="814" x2="385" y2="838" class="flow-line" marker-end="url(#arrow4)"/>
+
+        <!-- J -->
+        <rect x="275" y="840" width="220" height="54" rx="8" class="success-node"/>
+        <text x="385" y="864" text-anchor="middle" class="flow-text">200 OK + レスポンス</text>
+        <text x="385" y="880" text-anchor="middle" class="flow-text-sm">(/protected/profile)</text>
+      </svg>
+      <figcaption><span class="fig-num">図4</span>署名検証・有効期限・issuer・audienceのいずれかで失敗すれば即座に401を返す。成功時のみクレームがリクエストコンテキストに載る。</figcaption>
+    </figure>
+
+    <pre class="code-block"><span class="cm">// backend/main.go</span>
+func jwtMiddleware(jwtValidator *validator.Validator) echo.MiddlewareFunc {
+    return func(next echo.HandlerFunc) echo.HandlerFunc {
+        return func(c echo.Context) error {
+            token := extractToken(c.Request())                       <span class="cm">// Bearer抽出</span>
+            if token == "" {
+                return echo.NewHTTPError(http.StatusUnauthorized, "missing or invalid token")
+            }
+            claims, err := jwtValidator.ValidateToken(context.Background(), token) <span class="cm">// 署名+claims検証</span>
+            if err != nil {
+                return echo.NewHTTPError(http.StatusUnauthorized, fmt.Sprintf("invalid token: %v", err))
+            }
+            c.Set(userContextKey, claims)                             <span class="cm">// コンテキストに保存</span>
+            return next(c)
+        }
+    }
+}</pre>
+  </section>
+
+  <!-- ============ 6. クレーム ============ -->
+  <section id="claims">
+    <div class="section-label">06</div>
+    <h2>クレーム（Payload）の読み方</h2>
+    <p>このプロジェクトで実際にやり取りされるアクセストークンのクレーム例です。</p>
+
+    <pre class="code-block">{
+  "iss": "https://your-domain.auth0.com/",
+  "aud": "https://your-api-identifier",
+  "sub": "auth0|64f1a2b3c4d5e6f7",
+  "scope": "read:profile",
+  "exp": 1640995200,
+  "iat": 1640991600
+}</pre>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>クレーム</th><th>意味</th><th>このプロジェクトでの検証箇所</th></tr></thead>
+        <tbody>
+          <tr><td><code>iss</code></td><td>発行者 (Issuer)</td><td><code>validator.New(...)</code> 第3引数 = <code>issuerURL</code></td></tr>
+          <tr><td><code>aud</code></td><td>対象者 (Audience)</td><td><code>config.Auth0Audience</code> と一致するか</td></tr>
+          <tr><td><code>sub</code></td><td>ユーザーの一意なID (Subject)</td><td><code>handleProfile</code> で <code>claims.RegisteredClaims.Subject</code> として利用</td></tr>
+          <tr><td><code>exp</code></td><td>有効期限 (UNIX時間)</td><td>期限切れなら自動的に検証エラー</td></tr>
+          <tr><td><code>scope</code></td><td>許可されている操作範囲</td><td><code>CustomClaims</code> として取り込み（現状追加検証なし）</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============ 7. セキュリティ ============ -->
+  <section id="security">
+    <div class="section-label">07</div>
+    <h2>セキュリティ上のチェックポイント</h2>
+    <p>Go APIが1件のリクエストを受け入れる前に必ず通す4つの関門です。どれか1つでも欠けると危険になります。</p>
+
+    <div class="check-row">
+      <div class="check-chip">
+        <span class="chip-key">署名</span>
+        <span class="chip-desc">RS256 / JWKSで検証</span>
+      </div>
+      <span class="check-arrow">→</span>
+      <div class="check-chip">
+        <span class="chip-key">exp</span>
+        <span class="chip-desc">期限切れでないか</span>
+      </div>
+      <span class="check-arrow">→</span>
+      <div class="check-chip">
+        <span class="chip-key">iss</span>
+        <span class="chip-desc">想定したAuth0テナントか</span>
+      </div>
+      <span class="check-arrow">→</span>
+      <div class="check-chip">
+        <span class="chip-key">aud</span>
+        <span class="chip-desc">このAPI向けのトークンか</span>
+      </div>
+      <span class="check-arrow">→</span>
+      <div class="check-chip" style="border-color: var(--success); background: var(--success-soft);">
+        <span class="chip-key" style="color: var(--success);">許可</span>
+        <span class="chip-desc">リクエストを処理</span>
+      </div>
+    </div>
+
+    <div class="callout">
+      署名検証だけして<code class="inline">aud</code>を見ないと、<strong>別のAPI向けに発行されたトークンでもこのAPIに侵入できてしまう</strong>。
+      <code class="inline">iss</code>を見ないと、<strong>異なるAuth0テナント（あるいは偽サーバー）が発行したトークンを受け入れてしまう</strong>。
+      <code class="inline">backend/main.go</code> の <code class="inline">validator.New()</code> はissuer・audienceの両方を渡しているため、この4点を一括でカバーしている。
+    </div>
+  </section>
+
+  <!-- ============ 8. 用語まとめ ============ -->
+  <section id="glossary">
+    <div class="section-label">08</div>
+    <h2>用語まとめ</h2>
+    <div class="table-wrap">
+      <table>
+        <tbody>
+          <tr><td style="width: 220px;"><strong>JWT</strong></td><td>署名付きの自己完結型トークンのフォーマット</td></tr>
+          <tr><td><strong>JWKS</strong></td><td>署名検証用の公開鍵セット（Auth0が配布）</td></tr>
+          <tr><td><strong>RS256</strong></td><td>RSA + SHA-256による非対称署名アルゴリズム</td></tr>
+          <tr><td><strong>クレーム (Claims)</strong></td><td>JWTのPayloadに入っている個々のデータ項目</td></tr>
+          <tr><td><strong>iss / aud / sub / exp</strong></td><td>発行者 / 対象者 / 主体（ユーザー） / 有効期限</td></tr>
+          <tr><td><strong>ステートレス検証</strong></td><td>サーバー側にセッションを保存せず、トークン単体で正当性を検証できること</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer class="page-footer">
+    Markdown版は <code class="inline">docs/jwt-guide.md</code> を参照。対応コード: <code class="inline">backend/main.go</code>, <code class="inline">frontend/src/app/api/auth/</code>
+  </footer>
+
+</div>
+</body>
+</html>
